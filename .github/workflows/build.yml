@@ -94,6 +94,9 @@ jobs:
           Copy-Item -Path NOTICE.md       -Destination release/FGSEditor/NOTICE.md
           Copy-Item README.md, CHANGELOG.md -Destination release/FGSEditor/
           Copy-Item $env:TEST_FFMPEG, $env:TEST_FFPROBE -Destination release/FGSEditor/
+          $ffmpegRoot = Split-Path (Split-Path $env:TEST_FFMPEG)
+          New-Item -ItemType Directory release/FGSEditor/FFmpeg-notices
+          Get-ChildItem $ffmpegRoot -File | Copy-Item -Destination release/FGSEditor/FFmpeg-notices/
           Copy-Item (Split-Path $env:TEST_GRAV1SYNTH)/* -Destination release/FGSEditor/ -Recurse -Force
           "Commit: $env:GITHUB_SHA`nGrav1synth: $env:GRAV1SYNTH_TAG" | Set-Content release/FGSEditor/BUILD_INFO.txt
 

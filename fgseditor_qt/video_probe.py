@@ -194,6 +194,8 @@ def probe_video(filepath: str) -> dict:
 
     return {
         "codec": codec,
+        "tags": video_stream.get("tags", {}),
+        "disposition": video_stream.get("disposition", {}),
         "width": width,
         "height": height,
         "fps": fps,

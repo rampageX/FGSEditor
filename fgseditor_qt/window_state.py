@@ -22,6 +22,8 @@ class WindowState(QObject):
             screen = max(screens, key=lambda s: (s.availableGeometry().intersected(rect).width() * s.availableGeometry().intersected(rect).height())) if screens else None
             if screen and not obj.isMaximized():
                 area = screen.availableGeometry()
+                obj.setMinimumSize(min(obj.minimumWidth(), area.width()),
+                                   min(obj.minimumHeight(), area.height()))
                 obj.resize(min(obj.width(), area.width()), min(obj.height(), area.height()))
                 obj.move(max(area.left(), min(obj.x(), area.right()-obj.width()+1)),
                          max(area.top(), min(obj.y(), area.bottom()-obj.height()+1)))

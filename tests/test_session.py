@@ -58,7 +58,7 @@ class SessionTests(unittest.TestCase):
                 Path(args[-1]).write_bytes(b'complete')
         worker = ApplyWorker(source, output, ['filmgrn1\n'])
         messages=[]; worker.result.connect(lambda ok,msg: messages.append((ok,msg)))
-        with patch('fgseditor_qt.apply_video.get_grav1synth_path', return_value='grav1synth'), patch('fgseditor_qt.apply_video.find_ffmpeg', return_value='ffmpeg'), patch.object(worker,'run_command',side_effect=command):
+        with patch('fgseditor_qt.apply_video.probe_video',return_value={'codec':'av1'}), patch('fgseditor_qt.apply_video.get_grav1synth_path', return_value='grav1synth'), patch('fgseditor_qt.apply_video.find_ffmpeg', return_value='ffmpeg'), patch.object(worker,'run_command',side_effect=command):
             worker.run()
         self.assertTrue(messages[0][0], messages)
         self.assertEqual(calls[0][-1],source)

@@ -28,6 +28,8 @@ class ApplyWorker(QThread):
         return self._cancel.is_set() or super().isInterruptionRequested()
 
     def run_command(self, args):
+        if self.isInterruptionRequested():
+            raise InterruptedError("Cancelled. No output was published.")
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         with tempfile.TemporaryFile() as log:
             process = subprocess.Popen(args, stdout=log, stderr=log, stdin=subprocess.DEVNULL,
@@ -50,6 +52,9 @@ class ApplyWorker(QThread):
 
     def run(self):
         try:
+            info = probe_video(self.source)
+            if info["codec"] != "av1":
+                raise ValueError("Apply requires AV1 video.")
             # Same filesystem permits atomic, non-overwriting publication.
             with tempfile.TemporaryDirectory(prefix=".fgseditor-", dir=str(Path(self.output).parent)) as work:
                 table = str(Path(work)/"current.txt")
@@ -60,14 +65,23 @@ class ApplyWorker(QThread):
                                   "-y", "--replace", self.source])
                 # grav1synth may drop attachments/data; remux those from the original.
                 # No decoder or encoder is used. Unsupported streams fail rather than being dropped.
+                metadata = []
+                for key, value in info.get("tags", {}).items():
+                    metadata.extend(["-metadata:s:v:0", f"{key}={value}"])
+                disposition = info.get("disposition", {})
+                if disposition:
+                    metadata.extend(["-disposition:v:0", "+".join(k for k,v in disposition.items() if v) or "0"])
                 self.run_command([find_ffmpeg(), "-nostdin", "-v", "error", "-n", "-i", changed,
                                   "-i", self.source, "-map", "0:v:0", "-map", "1", "-map", "-1:v:0",
-                                  "-map_metadata", "1", "-map_chapters", "1", "-c", "copy", staged])
+                                  "-map_metadata", "1", "-map_chapters", "1", "-c", "copy", *metadata, staged])
                 if self.isInterruptionRequested():
                     raise InterruptedError("Cancelled. No output was published.")
                 if not os.path.getsize(staged):
                     raise RuntimeError("The output video is empty.")
-                os.link(staged, self.output)  # fails if destination appeared during processing
+                if sys.platform == "win32":
+                    os.rename(staged, self.output)  # Windows rename never overwrites; works on SMB too.
+                else:
+                    os.link(staged, self.output)  # atomic, no-clobber publication on POSIX
             self.result.emit(True, "Video saved to:\n" + self.output)
         except Exception as exc:
             self.result.emit(False, str(exc))
@@ -83,12 +97,8 @@ def apply_current_table(parent, context, lines):
         if not source:
             return
     try:
-        info = probe_video(source)
-        if info["codec"] != "av1":
-            raise ValueError("Apply requires AV1 video.")
         if not get_grav1synth_path() or not find_ffmpeg():
             raise ValueError("Configure grav1synth and FFmpeg in Settings first.")
-        remember_directory("video", source)
     except Exception as exc:
         QMessageBox.critical(parent, "Cannot Apply", str(exc))
         return
@@ -114,6 +124,8 @@ def apply_current_table(parent, context, lines):
     progress.setAutoClose(False)
     progress.canceled.connect(worker.requestInterruption)
     def result(ok, message):
+        if ok:
+            remember_directory("video", source)
         progress.close()
         (QMessageBox.information if ok else QMessageBox.warning)(parent, "Apply Complete" if ok else "Apply Stopped", message)
     def finished():
