@@ -288,7 +288,12 @@ class MainUI(QMainWindow):
                     extraction.cleanup()
                     return
                 # The extracted table is a temporary editing source, never a Save destination.
-                suggested = os.path.splitext(filepath)[0] + "_edited_fgs.txt"
+                stem = os.path.splitext(filepath)[0] + "_edited_fgs"
+                suggested = stem + ".txt"
+                suffix = 1
+                while os.path.lexists(suggested):
+                    suggested = f"{stem}_{suffix}.txt"
+                    suffix += 1
                 self.filepath = suggested
                 if hasattr(self, "dynamic_ui") and self.dynamic_ui.isVisible():
                     self.dynamic_ui.filepath = suggested

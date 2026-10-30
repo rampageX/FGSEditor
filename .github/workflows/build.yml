@@ -97,6 +97,22 @@ jobs:
           Copy-Item (Split-Path $env:TEST_GRAV1SYNTH)/* -Destination release/FGSEditor/ -Recurse -Force
           "Commit: $env:GITHUB_SHA`nGrav1synth: $env:GRAV1SYNTH_TAG" | Set-Content release/FGSEditor/BUILD_INFO.txt
 
+      - name: Packaged Windows launch smoke check
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path release/FGSEditor/FGSEditor.exe).Path
+          $process = Start-Process $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          try {
+            Start-Sleep -Seconds 10
+            $process.Refresh()
+            if ($process.HasExited) { throw "Packaged application exited: $($process.ExitCode)" }
+            if ($process.MainWindowTitle -notlike '*FGSEditor*') { throw 'Main FGSEditor window was not created' }
+            Write-Host "PASS: packaged main window: $($process.MainWindowTitle)"
+          } finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            Remove-Item release/FGSEditor/settings.json -ErrorAction SilentlyContinue
+          }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
