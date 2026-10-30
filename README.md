@@ -48,3 +48,30 @@ All third-party licenses and copyright notices are listed in [`NOTICE.md`](NOTIC
 ## 🤝 Contributing
 Contributions are always welcome! Feel free to open an issue to report bugs or request features, or submit a Pull Request if you'd like to contribute directly to the code.
 You can find me in the [AV1 Weeb Discord Server](https://discord.gg/bZPrC2cmP6)
+
+## Fork test build: session persistence and Apply
+
+Video and FGS-table dialogs remember separate successful-open directories in the existing
+`settings.json` next to the application. Missing directories fall back to the application folder.
+Main, dynamic timeline and event editor windows independently remember Qt geometry; restoration
+checks the available monitors. Minimized state is not persisted.
+
+**Save & Apply** uses the current in-memory table, including unsaved edits. In a dynamic timeline,
+it includes the currently open event editor. All event boundaries and gaps are retained; no looping
+or extension is added. If no video is associated, select a target AV1 video. Output is always a new
+MKV; existing files are protected. grav1synth replaces the grain headers and FFmpeg remuxes with
+stream copy, retaining original audio, subtitles, attachments, chapters and metadata where supported.
+An unsupported stream fails the operation rather than silently dropping it. Stream order may change
+(the edited AV1 video is first). Cancel stops the external process and removes temporary files.
+Applying does not mark the table as saved; use Save FGS separately to save the edited table.
+
+The Windows test artifact includes FFmpeg/ffprobe and grav1synth; existing configured tool paths
+still take precedence. BUILD_INFO.txt identifies the source commit and grav1synth release.
+
+Manual checks: restart after moving/resizing each window; test mixed-DPI displays and unplugging
+one; cancel/fail file opens; edit extracted grain without saving then Apply; test a dynamic table
+with gaps and an open event editor; cancel a long Apply; use Chinese, spaces, apostrophes, ampersands
+and parentheses in paths. Compare playback, audio/subtitles, chapters and grain timing with the source.
+
+Texture preview is not implemented in this stage. Future preview can consume the same immutable
+`build_dynamic_lines` snapshot used by `apply_current_table`, selecting the event at the preview time.

@@ -55,3 +55,14 @@ def set_setting(key, value):
 
 # Initialize immediately
 load_settings()
+
+
+def last_directory(kind):
+    path = get_setting("last_directory_" + kind, "")
+    return path if os.path.isdir(path) else get_base_dir()
+
+
+def remember_directory(kind, filename):
+    directory = os.path.dirname(os.path.abspath(filename))
+    if os.path.isdir(directory):
+        set_setting("last_directory_" + kind, directory)

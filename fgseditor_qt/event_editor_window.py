@@ -8,6 +8,8 @@ from .shortcuts import create_standard_menu
 class EventEditorUI(QDialog):
     def __init__(self, dynamic_timeline_ui, event_data):
         super().__init__()
+        from .window_state import remember_window
+        remember_window(self, "event")
         try:
             self.setWindowFlag(Qt.Window, True)
             self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)

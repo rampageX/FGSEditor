@@ -17,6 +17,7 @@ from PySide6.QtCore import Qt
 
 from . import fgs_parser
 from .app_paths import get_base_dir
+from .settings_manager import last_directory, remember_directory
 from .shortcuts import create_standard_menu, show_credits, open_github, show_notice
 from .single_editor import SingleEventEditor
 
@@ -130,6 +131,8 @@ class WelcomeScreen(QFrame):
 class MainUI(QMainWindow):
     def __init__(self):
         super().__init__()
+        from .window_state import remember_window
+        remember_window(self, "main")
         self.setWindowTitle("FGSEditor")
         self.setMinimumSize(1000, 650)
 
@@ -177,6 +180,10 @@ class MainUI(QMainWindow):
         self.setWindowTitle(title)
 
     def closeEvent(self, event):
+        if getattr(self, "_apply_worker", None) is not None:
+            self._apply_worker.requestInterruption()
+            event.ignore()
+            return
         if self.editor.is_dirty():
             reply = QMessageBox.question(
                 self,
@@ -220,7 +227,7 @@ class MainUI(QMainWindow):
 
     def load_file(self):
         filename, _ = QFileDialog.getOpenFileName(
-            self, "Select FGS file", get_base_dir(), "Text Files (*.txt)"
+            self, "Select FGS file", last_directory("table"), "Text Files (*.txt)"
         )
         if not filename:
             return
@@ -230,7 +237,7 @@ class MainUI(QMainWindow):
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Select Supported Video",
-            get_base_dir(),
+            last_directory("video"),
             "Video Files (*.mkv *.ivf *.mp4 *.hevc);;All Files (*)",
         )
         if not filename:
@@ -250,11 +257,10 @@ class MainUI(QMainWindow):
             QMessageBox.critical(self, "Video Error", str(exc))
             return
 
-        self._video_path = filepath
-        self._video_info = info
 
-        video_base = os.path.splitext(filepath)[0]
-        fgs_path = f"{video_base}_fgs.txt"
+        import tempfile
+        extraction = tempfile.TemporaryDirectory(prefix="fgseditor-inspect-")
+        fgs_path = os.path.join(extraction.name, "extracted.txt")
 
         is_hevc = info.get("codec", "").lower() == "hevc"
 
@@ -278,7 +284,10 @@ class MainUI(QMainWindow):
             if reply == QMessageBox.Cancel:
                 return
             if reply == QMessageBox.Yes:
-                self.load_file_from_path(fgs_path)
+                if not self.load_file_from_path(fgs_path, remember=False):
+                    extraction.cleanup()
+                    return
+                self._extracted_table = extraction
                 self._setup_video_context(filepath, info)
                 return
         else:
@@ -294,6 +303,7 @@ class MainUI(QMainWindow):
         self._setup_video_context(filepath, info)
 
     def _setup_video_context(self, video_path: str, info: dict):
+        remember_directory("video", video_path)
         self._video_path = video_path
         self._video_info = info
         self.editor.set_video_info(info)
@@ -322,15 +332,22 @@ class MainUI(QMainWindow):
         self.editor.set_file_label(f"Editing FGS for: {fname}")
         self._on_state_changed(self.editor.is_dirty())
 
-    def load_file_from_path(self, filepath):
-        self.filepath = filepath
-        self.editor.set_file_label(f"Editing: {self.filepath}")
+    def load_file_from_path(self, filepath, remember=True):
 
         try:
-            with open(self.filepath, "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
 
             header_lines, events = fgs_parser.parse_fgs_events(content)
+            if not events:
+                raise ValueError("No FGS events in this file.")
+            self.filepath = filepath
+            self.editor.set_file_label(f"Editing: {filepath}")
+            if remember:
+                remember_directory("table", filepath)
+            self._video_path = None
+            self._video_info = None
+            self.editor.set_save_apply_enabled(True, "Apply current FGS to an AV1 video")
 
             if fgs_parser.is_dynamic(events):
                 from .dynamic_ui import DynamicTimelineUI
@@ -351,8 +368,10 @@ class MainUI(QMainWindow):
                 self.editor.load_event(event)
                 self.stacked_widget.setCurrentIndex(1)
                 self._on_state_changed(False)
+            return True
         except Exception as ex:
             QMessageBox.critical(self, "Error", f"An error occurred:\n{str(ex)}")
+            return False
 
     def create_static_fgs(self):
         from .fgs_templates import get_system_dir
@@ -364,7 +383,7 @@ class MainUI(QMainWindow):
             )
             return
 
-        self.load_file_from_path(default_path)
+        self.load_file_from_path(default_path, remember=False)
         self.filepath = None
         self.editor.set_file_label("Editing: Unsaved New FGS")
         self._on_state_changed(True)
@@ -574,158 +593,11 @@ class MainUI(QMainWindow):
             )
 
     def save_and_apply(self):
-        if not self._video_path:
-            QMessageBox.warning(self, "No Video", "No source video loaded.")
-            return
-
-        from . import grav1synth as g1s
-
-        exe = g1s.get_grav1synth_path()
-        if exe is None:
-            QMessageBox.critical(
-                self,
-                "grav1synth Not Found",
-                "grav1synth was not found.\n\n"
-                "Place the binary next to FGSEditor or add it to your system PATH.",
-            )
-            return
-
-        # Sync times
-        start_t, end_t = self.editor.get_event_time_bounds()
-        if self._current_event is not None:
-            self._current_event["start_time"] = start_t
-            self._current_event["end_time"] = end_t
-
-        # Validation
-        errors = self.editor.get_validation_errors()
-        if errors:
-            error_text = "\n".join(errors)
-            reply = QMessageBox.warning(
-                self,
-                "Unsafe Preset",
-                f"The current preset has stability or clipping issues:\n\n{error_text}\n\nAre you sure you want to continue?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            if reply == QMessageBox.No:
-                return
-
-        # Ask for output video path
-        src_base = os.path.splitext(os.path.basename(self._video_path))
-        src_ext = src_base[1] if len(src_base) > 1 else ".mkv"
-        video_dir = os.path.dirname(self._video_path)
-
-        base_name_candidate = f"{src_base[0]}_fgs_applied"
-        default_out = os.path.join(video_dir, f"{base_name_candidate}{src_ext}")
-        idx = 0
-        while os.path.exists(default_out) or os.path.exists(
-            os.path.join(video_dir, f"{base_name_candidate}.txt")
-        ):
-            idx += 1
-            base_name_candidate = f"{src_base[0]}_fgs_applied ({idx})"
-            default_out = os.path.join(video_dir, f"{base_name_candidate}{src_ext}")
-
-        output_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Output Video",
-            default_out,
-            "MKV Video (*.mkv);;All Files (*)",
-        )
-        if not output_path:
-            return
-
-        out_dir = os.path.dirname(output_path)
-        out_base = os.path.splitext(os.path.basename(output_path))[0]
-        tmp_fgs = os.path.join(out_dir, f"{out_base}.txt")
-
-        p_params = self.editor.get_p_params()
-        event_raw_lines = (
-            self._current_event.get("raw_lines") if self._current_event else None
-        )
-
-        source_fgs = self.filepath
-        if not source_fgs:
-            from .fgs_templates import get_system_dir
-
-            source_fgs = os.path.join(get_system_dir(), "default.txt")
-
-        from .fgs_save import build_static_lines
-
-        try:
-            with open(source_fgs, "r", encoding="utf-8") as fh:
-                original_lines = fh.readlines()
-
-            if event_raw_lines is not None:
-                header_and_e = []
-                for line in original_lines:
-                    header_and_e.append(line)
-                    tokens = line.strip().split()
-                    if tokens and tokens[0] == "E":
-                        break
-                original_lines = header_and_e + event_raw_lines
-
-            if self._current_event is not None:
-                start_t = self._current_event.get("start_time", 0)
-                end_t = self._current_event.get("end_time", 0)
-                pass
-                updated_lines = []
-                for line in original_lines:
-                    tokens = line.strip().split()
-                    if tokens and tokens[0] == "E" and len(tokens) >= 3:
-                        extra = " ".join(tokens[3:]) if len(tokens) > 3 else ""
-                        line = f"E {start_t} {end_t}"
-                        if extra:
-                            line += f" {extra}"
-                        line += "\n"
-                    updated_lines.append(line)
-                original_lines = updated_lines
-
-            new_lines = build_static_lines(
-                original_lines,
-                self.editor.current_scale_data,
-                p_params,
-                start_time=start_t,
-                end_time=end_t,
-                grain_seed=self.editor.get_seed(),
-            )
-
-            with open(tmp_fgs, "w", encoding="utf-8") as fh:
-                fh.writelines(new_lines)
-        except Exception as ex:
-            QMessageBox.critical(self, "Error", f"Failed to build FGS file:\n{ex}")
-            return
-
-        from PySide6.QtWidgets import QProgressDialog
-
-        progress = QProgressDialog(
-            "Applying film grain to video...\nThis may take a while.",
-            None,
-            0,
-            0,
-            self,
-        )
-        progress.setWindowTitle("Applying FGS")
-        progress.setMinimumDuration(0)
-        progress.show()
-        from PySide6.QtWidgets import QApplication
-
-        QApplication.processEvents()
-
-        success, msg = g1s.apply_fgs(self._video_path, tmp_fgs, output_path)
-        progress.close()
-
-        if success:
-            QMessageBox.information(
-                self,
-                "Success",
-                f"Film grain applied successfully!\n\nOutput: {output_path}\nFGS saved to: {tmp_fgs}",
-            )
-        else:
-            QMessageBox.critical(
-                self,
-                "Apply Failed",
-                f"Failed to apply film grain:\n\n{msg}\n\nFGS used: {tmp_fgs}",
-            )
+        from .apply_video import apply_current_table
+        from .fgs_save import build_dynamic_lines
+        import copy
+        event = copy.deepcopy(self.editor.get_working_event())
+        apply_current_table(self, self, build_dynamic_lines(["filmgrn1\n"], [event]))
 
     def save_plot_as_png(self):
         save_path, _ = QFileDialog.getSaveFileName(

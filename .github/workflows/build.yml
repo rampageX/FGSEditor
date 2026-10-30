@@ -30,6 +30,34 @@ jobs:
           python -m pip install PySide6 matplotlib numpy Nuitka
           python -m pip install .
 
+      - name: Unit checks
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m unittest discover -s tests -v
+
+      - name: Obtain integration tools
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod https://api.github.com/repos/rampageX/grav1synth/releases/tags/v0.2.2
+          $asset = $release.assets | Where-Object { $_.name -match 'windows' -and $_.name -match 'zip$' -and $_.name -notmatch 'arm|aarch' } | Select-Object -First 1
+          if (-not $asset) { throw 'No Windows grav1synth ZIP asset found' }
+          Invoke-WebRequest $asset.browser_download_url -OutFile grav1synth.zip
+          Expand-Archive grav1synth.zip integration-tools/grav1synth
+          Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip integration-tools/ffmpeg
+          $grav = (Get-ChildItem integration-tools/grav1synth -Recurse -Filter grav1synth.exe | Select-Object -First 1).FullName
+          $ffmpeg = (Get-ChildItem integration-tools/ffmpeg -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName
+          $ffprobe = (Get-ChildItem integration-tools/ffmpeg -Recurse -Filter ffprobe.exe | Select-Object -First 1).FullName
+          "TEST_GRAV1SYNTH=$grav" >> $env:GITHUB_ENV
+          "TEST_FFMPEG=$ffmpeg" >> $env:GITHUB_ENV
+          "TEST_FFPROBE=$ffprobe" >> $env:GITHUB_ENV
+          "GRAV1SYNTH_TAG=$($release.tag_name)" >> $env:GITHUB_ENV
+
+      - name: Real AV1 apply integration
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tests/integration_apply.py
+
       - name: Cache Nuitka
         uses: actions/cache@v4
         with:
@@ -64,7 +92,10 @@ jobs:
           Copy-Item -Path FGS_grain_size  -Destination release/FGSEditor/FGS_grain_size  -Recurse
           Copy-Item -Path Templates       -Destination release/FGSEditor/Templates        -Recurse
           Copy-Item -Path NOTICE.md       -Destination release/FGSEditor/NOTICE.md
-          Copy-Item -Path settings.json   -Destination release/FGSEditor/settings.json -ErrorAction SilentlyContinue
+          Copy-Item README.md, CHANGELOG.md -Destination release/FGSEditor/
+          Copy-Item $env:TEST_FFMPEG, $env:TEST_FFPROBE -Destination release/FGSEditor/
+          Copy-Item (Split-Path $env:TEST_GRAV1SYNTH)/* -Destination release/FGSEditor/ -Recurse -Force
+          "Commit: $env:GITHUB_SHA`nGrav1synth: $env:GRAV1SYNTH_TAG" | Set-Content release/FGSEditor/BUILD_INFO.txt
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

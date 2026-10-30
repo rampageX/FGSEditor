@@ -156,6 +156,8 @@ class TimelineDataWorker(QThread):
 class DynamicTimelineUI(QWidget):
     def __init__(self, main_ui, file_data):
         super().__init__()
+        from .window_state import remember_window
+        remember_window(self, "timeline")
         self.main_ui = main_ui
         self.setWindowTitle("FGS Dynamic Timeline")
         self.setMinimumSize(900, 500)
@@ -278,6 +280,10 @@ class DynamicTimelineUI(QWidget):
         self.save_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.save_btn.clicked.connect(self.save_fgs)
         mid_layout.addWidget(self.save_btn, stretch=0)
+        self.apply_btn = QPushButton("Save && Apply")
+        self.apply_btn.clicked.connect(self.apply_video)
+        mid_layout.addWidget(self.apply_btn, stretch=0)
+
 
         self.save_bin_btn = QPushButton("Save Binary")
         self.save_bin_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -470,6 +476,10 @@ class DynamicTimelineUI(QWidget):
         self._update_inline_edit_bar_text()
 
     def closeEvent(self, event):
+        if getattr(self, "_apply_worker", None) is not None:
+            self._apply_worker.requestInterruption()
+            event.ignore()
+            return
         if self.is_dirty():
             reply = QMessageBox.question(
                 self,
@@ -1336,6 +1346,16 @@ class DynamicTimelineUI(QWidget):
         event_dict = {"event": self.events[idx], "event_idx": idx}
         self.editor = EventEditorUI(self, event_dict)
         self.editor.show()
+
+    def apply_video(self):
+        from .apply_video import apply_current_table
+        from .fgs_save import build_dynamic_lines
+        events = copy.deepcopy(self.events)
+        # Include the currently open event editor without marking it saved.
+        editor = getattr(self, "editor", None)
+        if editor is not None and editor.isVisible():
+            events[editor.event_data["event_idx"]] = copy.deepcopy(editor.editor.get_working_event())
+        apply_current_table(self, self.main_ui, build_dynamic_lines(self.header_lines, events))
 
     def save_fgs(self):
         from .settings_manager import get_setting
