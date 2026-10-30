@@ -294,6 +294,11 @@ class SingleEventEditor(QWidget):
         st, et = self.sidebar.get_event_time_bounds()
         self._working["start_time"] = st
         self._working["end_time"] = et
+        extra = list(self._working.get("extra_params", ["1", "7391", "1"]))
+        while len(extra) < 3:
+            extra.append("1")
+        extra[1] = str(self.get_seed())
+        self._working["extra_params"] = extra
         return self._working
 
     def apply_working_to_event(self):
