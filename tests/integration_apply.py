@@ -18,7 +18,10 @@ set_setting('ffprobe_path', os.environ['TEST_FFPROBE'])
 set_setting('grav1synth_path', os.environ['TEST_GRAV1SYNTH'])
 
 def run(args):
-    return subprocess.check_output(args, stderr=subprocess.STDOUT)
+    try:
+        return subprocess.check_output(args, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(exc.output.decode('utf-8','replace')) from exc
 
 with tempfile.TemporaryDirectory() as root:
     folder = Path(root)/"中文 & (Punk's)"; folder.mkdir()
@@ -55,7 +58,9 @@ with tempfile.TemporaryDirectory() as root:
     assert not active(7500000) and not active(17500000), 'A gap or finite tail was filled'
 
     def pixel_hashes(path):
-        data=run([os.environ['TEST_FFMPEG'],'-v','error','-c:v','libdav1d','-filmgrain','0','-i',path,
+        stripped = str(folder/(Path(path).stem + '_no_grain.mkv'))
+        run([os.environ['TEST_GRAV1SYNTH'],'remove','-o',stripped,'-y',path])
+        data=run([os.environ['TEST_FFMPEG'],'-v','error','-i',stripped,
                   '-map','0:v:0','-f','framemd5','-']).decode()
         return [line.rsplit(',',1)[1].strip() for line in data.splitlines() if line and not line.startswith('#')]
     assert pixel_hashes(source)==pixel_hashes(output), 'Video pixels changed when grain synthesis disabled'

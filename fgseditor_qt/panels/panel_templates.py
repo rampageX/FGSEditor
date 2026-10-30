@@ -109,12 +109,14 @@ class PanelTemplates(QWidget):
         self._user_combo.blockSignals(False)
 
     def _on_upload(self):
+        from ..settings_manager import last_directory, remember_directory
         filepath, _ = QFileDialog.getOpenFileName(
-            self, "Select FGS Template", "", "Text Files (*.txt)"
+            self, "Select FGS Template", last_directory("template"), "Text Files (*.txt)"
         )
         if filepath:
             name = import_user_template(filepath)
             if name:
+                remember_directory("template", filepath)
                 self._refresh_user_combo()
                 idx = self._user_combo.findText(name)
                 if idx >= 0:

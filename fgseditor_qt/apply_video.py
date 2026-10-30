@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 from PySide6.QtCore import QThread, Signal, Qt
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog
@@ -17,6 +18,14 @@ class ApplyWorker(QThread):
     def __init__(self, source, output, lines, parent=None):
         super().__init__(parent)
         self.source, self.output, self.lines = source, output, list(lines)
+        self._cancel = threading.Event()
+
+    def requestInterruption(self):
+        self._cancel.set()
+        super().requestInterruption()
+
+    def isInterruptionRequested(self):
+        return self._cancel.is_set() or super().isInterruptionRequested()
 
     def run_command(self, args):
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0

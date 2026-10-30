@@ -51,7 +51,7 @@ You can find me in the [AV1 Weeb Discord Server](https://discord.gg/bZPrC2cmP6)
 
 ## Fork test build: session persistence and Apply
 
-Video and FGS-table dialogs remember separate successful-open directories in the existing
+Video, FGS-table and template-import dialogs remember separate successful-open directories in the existing
 `settings.json` next to the application. Missing directories fall back to the application folder.
 Main, dynamic timeline and event editor windows independently remember Qt geometry; restoration
 checks the available monitors. Minimized state is not persisted.
