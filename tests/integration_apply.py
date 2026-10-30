@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as root:
     header, events = parse_fgs_events(Path('static_fgs_test.txt').read_text())
     events[0]['start_time']=0; events[0]['end_time']=5000000
     import copy
-    second=copy.deepcopy(events[0]); second['start_time']=10000000; second['end_time']=20000000
+    second=copy.deepcopy(events[0]); second['start_time']=10000000; second['end_time']=15000000
     lines=build_dynamic_lines(header,[events[0],second])
     messages=[]
     worker=ApplyWorker(source,output,lines)
@@ -48,7 +48,12 @@ with tempfile.TemporaryDirectory() as root:
             return run([os.environ['TEST_FFMPEG'],'-v','error','-i',path,'-map',selector,'-c','copy','-f','hash','-hash','sha256','-'])
         assert hash_stream(source)==hash_stream(output), selector
     extracted=str(folder/'output.txt'); assert inspect_fgs(output,extracted)
-    assert parse_fgs_events(Path(extracted).read_text())[1], 'No output grain events'
+    extracted_events=parse_fgs_events(Path(extracted).read_text())[1]
+    def active(t):
+        return any(e['start_time'] <= t < e['end_time'] for e in extracted_events)
+    assert active(2500000) and active(12500000), extracted_events
+    assert not active(7500000) and not active(17500000), 'A gap or finite tail was filled'
+
     def pixel_hashes(path):
         data=run([os.environ['TEST_FFMPEG'],'-v','error','-c:v','libdav1d','-filmgrain','0','-i',path,
                   '-map','0:v:0','-f','framemd5','-']).decode()

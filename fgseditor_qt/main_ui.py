@@ -292,7 +292,7 @@ class MainUI(QMainWindow):
                 self.filepath = suggested
                 if hasattr(self, "dynamic_ui") and self.dynamic_ui.isVisible():
                     self.dynamic_ui.filepath = suggested
-                self._extracted_table = extraction
+                extraction.cleanup()
                 self._setup_video_context(filepath, info)
                 return
         else:
@@ -304,8 +304,8 @@ class MainUI(QMainWindow):
                     "You will be taken to the FGS creator.",
                 )
 
-        self.create_static_fgs()
-        self._setup_video_context(filepath, info)
+        if self.create_static_fgs():
+            self._setup_video_context(filepath, info)
 
     def _setup_video_context(self, video_path: str, info: dict):
         remember_directory("video", video_path)
@@ -388,10 +388,12 @@ class MainUI(QMainWindow):
             )
             return
 
-        self.load_file_from_path(default_path, remember=False)
+        if not self.load_file_from_path(default_path, remember=False):
+            return False
         self.filepath = None
         self.editor.set_file_label("Editing: Unsaved New FGS")
         self._on_state_changed(True)
+        return True
 
     def save_file(self):
         start_t, end_t = self.editor.get_event_time_bounds()
@@ -601,6 +603,10 @@ class MainUI(QMainWindow):
         from .apply_video import apply_current_table
         from .fgs_save import build_dynamic_lines
         import copy
+        errors = self.editor.get_validation_errors()
+        if errors and QMessageBox.warning(self, "Unsafe Preset", "\n".join(errors) + "\nContinue applying?",
+                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
         event = copy.deepcopy(self.editor.get_working_event())
         apply_current_table(self, self, build_dynamic_lines(["filmgrn1\n"], [event]))
 

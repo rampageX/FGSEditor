@@ -53,7 +53,7 @@ class ApplyWorker(QThread):
                 # No decoder or encoder is used. Unsupported streams fail rather than being dropped.
                 self.run_command([find_ffmpeg(), "-nostdin", "-v", "error", "-n", "-i", changed,
                                   "-i", self.source, "-map", "0:v:0", "-map", "1", "-map", "-1:v:0",
-                                  "-map_metadata", "1", "-map_chapters", "1", "-c", "copy", staged])
+                                  "-map_metadata", "1", "-map_metadata:s:v:0", "1:s:v:0", "-map_chapters", "1", "-c", "copy", staged])
                 if self.isInterruptionRequested():
                     raise InterruptedError("Cancelled. No output was published.")
                 if not os.path.getsize(staged):
