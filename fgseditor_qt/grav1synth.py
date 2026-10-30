@@ -81,15 +81,10 @@ def inspect_fgs(video_path: str, output_txt: str) -> bool:
             for phrase in [
                 "no film grain",
                 "no grain",
-                "not found",
                 "does not contain",
                 "no fgs",
             ]
         ):
-            return False
-
-        # If output file was not created, assume no grain
-        if not os.path.isfile(output_txt):
             return False
 
         raise RuntimeError(

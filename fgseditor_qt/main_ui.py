@@ -268,10 +268,10 @@ class MainUI(QMainWindow):
         if not is_hevc:
             try:
                 has_fgs = g1s.inspect_fgs(filepath, fgs_path)
-            except FileNotFoundError:
-                pass
-            except RuntimeError:
-                pass
+            except (FileNotFoundError, RuntimeError) as exc:
+                QMessageBox.critical(self, "Grain Extraction Failed", str(exc))
+                extraction.cleanup()
+                return
 
         if has_fgs and os.path.isfile(fgs_path):
             reply = QMessageBox.question(
@@ -287,6 +287,11 @@ class MainUI(QMainWindow):
                 if not self.load_file_from_path(fgs_path, remember=False):
                     extraction.cleanup()
                     return
+                # The extracted table is a temporary editing source, never a Save destination.
+                suggested = os.path.splitext(filepath)[0] + "_edited_fgs.txt"
+                self.filepath = suggested
+                if hasattr(self, "dynamic_ui") and self.dynamic_ui.isVisible():
+                    self.dynamic_ui.filepath = suggested
                 self._extracted_table = extraction
                 self._setup_video_context(filepath, info)
                 return
@@ -343,8 +348,6 @@ class MainUI(QMainWindow):
                 raise ValueError("No FGS events in this file.")
             self.filepath = filepath
             self.editor.set_file_label(f"Editing: {filepath}")
-            if remember:
-                remember_directory("table", filepath)
             self._video_path = None
             self._video_info = None
             self.editor.set_save_apply_enabled(True, "Apply current FGS to an AV1 video")
@@ -368,6 +371,8 @@ class MainUI(QMainWindow):
                 self.editor.load_event(event)
                 self.stacked_widget.setCurrentIndex(1)
                 self._on_state_changed(False)
+            if remember:
+                remember_directory("table", filepath)
             return True
         except Exception as ex:
             QMessageBox.critical(self, "Error", f"An error occurred:\n{str(ex)}")

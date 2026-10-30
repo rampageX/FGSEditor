@@ -44,6 +44,32 @@ class SessionTests(unittest.TestCase):
         w2 = QWidget(); remember_window(w2,'test'); w2.show(); app.processEvents()
         self.assertEqual(w2.size(), w.size()); self.assertFalse(w2.isMinimized())
         w2.close(); w.close()
+    def test_apply_arguments_and_failure_cleanup(self):
+        from unittest.mock import patch
+        from fgseditor_qt.apply_video import ApplyWorker
+        folder = Path(self.temp.name)/"中文 & (Punk's)"; folder.mkdir()
+        source = str(folder/'source.mkv'); output = str(folder/'output.mkv')
+        calls = []
+        def command(args):
+            calls.append(args)
+            if args[1] == 'apply':
+                Path(args[args.index('-o')+1]).write_bytes(b'changed')
+            else:
+                Path(args[-1]).write_bytes(b'complete')
+        worker = ApplyWorker(source, output, ['filmgrn1\n'])
+        messages=[]; worker.result.connect(lambda ok,msg: messages.append((ok,msg)))
+        with patch('fgseditor_qt.apply_video.get_grav1synth_path', return_value='grav1synth'), patch('fgseditor_qt.apply_video.find_ffmpeg', return_value='ffmpeg'), patch.object(worker,'run_command',side_effect=command):
+            worker.run()
+        self.assertTrue(messages[0][0], messages)
+        self.assertEqual(calls[0][-1],source)
+        self.assertIn('--replace',calls[0])
+        self.assertEqual(Path(output).read_bytes(), b'complete')
+        worker = ApplyWorker(source, str(folder/'failure.mkv'), ['filmgrn1\n'])
+        with patch.object(worker,'run_command',side_effect=RuntimeError('tool failed')):
+            worker.run()
+        self.assertFalse((folder/'failure.mkv').exists())
+        self.assertFalse(list(folder.glob('.fgseditor-*')))
+
     def test_main_construct(self):
         from fgseditor_qt.main_ui import MainUI
         window = MainUI(); window.show(); app.processEvents()

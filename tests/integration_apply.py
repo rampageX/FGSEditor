@@ -49,8 +49,19 @@ with tempfile.TemporaryDirectory() as root:
         assert hash_stream(source)==hash_stream(output), selector
     extracted=str(folder/'output.txt'); assert inspect_fgs(output,extracted)
     assert parse_fgs_events(Path(extracted).read_text())[1], 'No output grain events'
+    def pixel_hashes(path):
+        data=run([os.environ['TEST_FFMPEG'],'-v','error','-c:v','libdav1d','-filmgrain','0','-i',path,
+                  '-map','0:v:0','-f','framemd5','-']).decode()
+        return [line.rsplit(',',1)[1].strip() for line in data.splitlines() if line and not line.startswith('#')]
+    assert pixel_hashes(source)==pixel_hashes(output), 'Video pixels changed when grain synthesis disabled'
+    replacement=str(folder/'replaced.mkv')
+    messages.clear()
+    worker=ApplyWorker(output,replacement,lines)
+    worker.result.connect(lambda ok,msg: messages.append((ok,msg)))
+    worker.run()
+    assert messages and messages[0][0], messages
     worker=ApplyWorker(source,str(folder/'cancelled.mkv'),lines)
-    worker.requestInterruption(); worker.run()
+    worker.start(); worker.requestInterruption(); worker.wait(); app.processEvents()
     assert not (folder/'cancelled.mkv').exists()
     assert not list(folder.glob('.fgseditor-*'))
     print('PASS: real AV1 metadata apply, special paths, audio/subtitle hashes, chapter, attachment, cancellation cleanup')
