@@ -181,8 +181,10 @@ class PanelTime(QWidget):
 
     def set_times(self, start_ticks: int, end_ticks: int) -> None:
         self._suppress = True
-        self._start_ticks = max(self._min_allowed_ticks, start_ticks)
-        self._end_ticks = min(self._max_allowed_ticks, end_ticks)
+        # Imported tables may use u64::MAX as an open-ended final event.
+        # Widget ranges limit explicit edits, not the stored table timestamps.
+        self._start_ticks = int(start_ticks)
+        self._end_ticks = int(end_ticks)
         self._sync_widgets_from_ticks()
         self._suppress = False
         self._update_info()

@@ -70,6 +70,18 @@ class SessionTests(unittest.TestCase):
         self.assertFalse((folder/'failure.mkv').exists())
         self.assertFalse(list(folder.glob('.fgseditor-*')))
 
+    def test_open_ended_event_snapshot(self):
+        from fgseditor_qt.single_editor import SingleEventEditor
+        _, events = parse_fgs_events(Path('static_fgs_test.txt').read_text())
+        event=events[0]
+        event['end_time'] = 2**64-1
+        editor=SingleEventEditor(is_dynamic=True)
+        editor.load_event(event)
+        editor.set_time_limits(0, 2**63-1)
+        snapshot=editor.get_working_event()
+        self.assertEqual(snapshot['end_time'], 2**64-1)
+        editor.close_plotters(); editor.close()
+
     def test_main_construct(self):
         from fgseditor_qt.main_ui import MainUI
         window = MainUI(); window.show(); app.processEvents()

@@ -6,6 +6,7 @@
 - Preserve extracted video's association with dynamic and static editing.
 - Replace blocking static-only Save & Apply with cancellable background metadata replacement.
 - Apply current unsaved data, including the open dynamic event editor; preserve event boundaries.
+- Preserve open-ended u64 timestamps when loading events instead of clamping them to widget limits.
 - Protect existing files and publish a new MKV only after all commands succeed.
 - Remux original non-target streams, metadata and chapters using FFmpeg stream copy.
 - Extract grain into a temporary directory instead of overwriting a source-side text file.
