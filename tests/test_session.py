@@ -82,6 +82,22 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(snapshot['end_time'], 2**64-1)
         editor.close_plotters(); editor.close()
 
+    def test_apply_after_event_window_is_destroyed(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from PySide6.QtCore import QCoreApplication, QEvent
+        from fgseditor_qt.dynamic_ui import DynamicTimelineUI
+        from shiboken6 import isValid
+        header, events = parse_fgs_events(Path('dynamic_fgs_test.txt').read_text())
+        editor = QWidget()
+        editor.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        self.assertFalse(isValid(editor))
+        timeline = SimpleNamespace(editor=editor, events=events, header_lines=header, main_ui=None)
+        with patch('fgseditor_qt.apply_video.apply_current_table') as apply:
+            DynamicTimelineUI.apply_video(timeline)
+        self.assertEqual(apply.call_args.args[2], build_dynamic_lines(header, events))
+
     def test_main_construct(self):
         from fgseditor_qt.main_ui import MainUI
         window = MainUI(); window.show(); app.processEvents()

@@ -1350,10 +1350,11 @@ class DynamicTimelineUI(QWidget):
     def apply_video(self):
         from .apply_video import apply_current_table
         from .fgs_save import build_dynamic_lines
+        from shiboken6 import isValid
         events = copy.deepcopy(self.events)
         # Include the currently open event editor without marking it saved.
         editor = getattr(self, "editor", None)
-        if editor is not None and editor.isVisible():
+        if editor is not None and isValid(editor) and editor.isVisible():
             events[editor.event_data["event_idx"]] = copy.deepcopy(editor.editor.get_working_event())
         apply_current_table(self, self.main_ui, build_dynamic_lines(self.header_lines, events))
 
