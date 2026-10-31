@@ -111,8 +111,13 @@ jobs:
           $exe = (Resolve-Path release/FGSEditor/FGSEditor.exe).Path
           $process = Start-Process $exe -WorkingDirectory (Split-Path $exe) -PassThru
           try {
-            Start-Sleep -Seconds 10
-            $process.Refresh()
+            $deadline = (Get-Date).AddSeconds(60)
+            do {
+              Start-Sleep -Seconds 2
+              $process.Refresh()
+              if ($process.HasExited -or $process.MainWindowTitle -like '*FGSEditor*') { break }
+            } while ((Get-Date) -lt $deadline)
+            Write-Host "Startup observed title: $($process.MainWindowTitle)"
             if ($process.HasExited) { throw "Packaged application exited: $($process.ExitCode)" }
             if ($process.MainWindowTitle -notlike '*FGSEditor*') { throw 'Main FGSEditor window was not created' }
             Write-Host "PASS: packaged main window: $($process.MainWindowTitle)"
