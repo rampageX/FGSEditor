@@ -75,3 +75,7 @@ and parentheses in paths. Compare playback, audio/subtitles, chapters and grain 
 
 Texture preview is not implemented in this stage. Future preview can consume the same immutable
 `build_dynamic_lines` snapshot used by `apply_current_table`, selecting the event at the preview time.
+
+## Fork release v4.0.1
+
+See [CHANGELOG.md](CHANGELOG.md) for changes and [RELEASE_NOTES.md](RELEASE_NOTES.md) for Windows setup and validation scope.

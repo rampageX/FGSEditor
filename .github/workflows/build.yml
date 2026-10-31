@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the verified Windows v4.0.1 package
+        required: true
+        default: false
+        type: boolean
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -74,8 +80,8 @@ jobs:
             --windows-icon-from-ico=icon.ico ^
             --windows-company-name="PingWer" ^
             --windows-product-name="FGSEditor" ^
-            --windows-file-version="4.0.0.0" ^
-            --windows-product-version="4.0.0.0" ^
+            --windows-file-version="4.0.1.0" ^
+            --windows-product-version="4.0.1.0" ^
             --windows-file-description="Film Grain Strength Editor" ^
             --output-dir=dist fgseditor_qt/fgsview_loader.py ^
             --include-package=fgseditor_qt ^
@@ -172,3 +178,32 @@ jobs:
         with:
           name: FGSEditor-Linux
           path: release/
+
+  publish-release:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+    needs: build-windows
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: FGSEditor-Windows
+          path: release-download
+      - name: Package and publish verified Windows build
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $info = Get-Content release-download/FGSEditor/BUILD_INFO.txt -Raw
+          if (-not $info.Contains($env:GITHUB_SHA)) { throw 'Artifact commit does not match release source.' }
+          if (Test-Path release-download/FGSEditor/ffmpeg.exe) { throw 'Unexpected bundled FFmpeg.' }
+          if (Test-Path release-download/FGSEditor/ffprobe.exe) { throw 'Unexpected bundled ffprobe.' }
+          Compress-Archive -Path release-download/FGSEditor -DestinationPath FGSEditor_v4.0.1_Windows_x64.zip
+          $hash = (Get-FileHash FGSEditor_v4.0.1_Windows_x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  FGSEditor_v4.0.1_Windows_x64.zip" | Set-Content -Encoding ascii SHA256SUMS.txt
+          gh release create v4.0.1 FGSEditor_v4.0.1_Windows_x64.zip SHA256SUMS.txt --target $env:GITHUB_SHA --title 'FGSEditor v4.0.1' --notes-file RELEASE_NOTES.md --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }

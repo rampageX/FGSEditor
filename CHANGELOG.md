@@ -1,6 +1,6 @@
 # Changelog
 
-## Fork test build — 2026-10-31
+## v4.0.1 — 2026-10-31
 
 - Remember successful video/table directories separately and restore three main window geometries.
 - Preserve extracted video's association with dynamic and static editing.
