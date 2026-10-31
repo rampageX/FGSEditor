@@ -92,10 +92,6 @@ jobs:
           Copy-Item -Path FGS_grain_size  -Destination release/FGSEditor/FGS_grain_size  -Recurse
           Copy-Item -Path Templates       -Destination release/FGSEditor/Templates        -Recurse
           Copy-Item -Path NOTICE.md       -Destination release/FGSEditor/NOTICE.md
-          Copy-Item $env:TEST_FFMPEG, $env:TEST_FFPROBE -Destination release/FGSEditor/
-          $ffmpegRoot = Split-Path (Split-Path $env:TEST_FFMPEG)
-          New-Item -ItemType Directory release/FGSEditor/FFmpeg-notices
-          Get-ChildItem $ffmpegRoot -File | Copy-Item -Destination release/FGSEditor/FFmpeg-notices/
           $grav1synthDir = Split-Path -Parent $env:TEST_GRAV1SYNTH
           Get-ChildItem -LiteralPath $grav1synthDir | ForEach-Object {
             Copy-Item -LiteralPath $_.FullName -Destination release/FGSEditor/ -Recurse -Force

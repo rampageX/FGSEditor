@@ -65,8 +65,8 @@ An unsupported stream fails the operation rather than silently dropping it. Stre
 (the edited AV1 video is first). Cancel stops the external process and removes temporary files.
 Applying does not mark the table as saved; use Save FGS separately to save the edited table.
 
-The Windows test artifact includes FFmpeg/ffprobe and grav1synth; existing configured tool paths
-still take precedence. BUILD_INFO.txt identifies the source commit and grav1synth release.
+The Windows test artifact includes grav1synth. FFmpeg and ffprobe are not bundled;
+configure their paths in Settings before video extraction or Save & Apply. BUILD_INFO.txt identifies the source commit and grav1synth release.
 
 Manual checks: restart after moving/resizing each window; test mixed-DPI displays and unplugging
 one; cancel/fail file opens; edit extracted grain without saving then Apply; test a dynamic table

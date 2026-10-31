@@ -11,5 +11,5 @@
 - Protect existing files and publish a new MKV only after all commands succeed.
 - Remux original non-target streams, metadata and chapters using FFmpeg stream copy.
 - Extract grain into a temporary directory instead of overwriting a source-side text file.
-- Add Windows unit and real AV1 integration checks before packaging; bundle tool dependencies.
+- Add Windows unit and real AV1 integration checks before packaging; bundle grav1synth only, using configured external FFmpeg/ffprobe paths.
 - Actual grain-texture preview remains a second-stage task.
